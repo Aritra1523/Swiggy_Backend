@@ -831,15 +831,17 @@ class AuthController {
 
   async placeOrder(req, res) {
     const session = await mongoose.startSession();
-    session.startTransaction();
 
     try {
-      //  Get cart
-      const cart = await Cart.findOne({ user: req.user.id }).session(session);
+      session.startTransaction();
+
+      const cart = await Cart.findOne({
+        user: req.user.id,
+      }).session(session);
 
       if (!cart) {
         await session.abortTransaction();
-        session.endSession();
+
         return res.status(404).json({
           status: false,
           message: "Cart not found",
@@ -848,21 +850,20 @@ class AuthController {
 
       if (!cart.items || cart.items.length === 0) {
         await session.abortTransaction();
-        session.endSession();
+
         return res.status(400).json({
           status: false,
           message: "Cart is empty",
         });
       }
 
-      //  Validate restaurant
-      const restaurant = await Restaurant.findById(cart.restaurant).session(
-        session,
-      );
+      const restaurant = await Restaurant.findById(
+        cart.restaurant
+      ).session(session);
 
       if (!restaurant) {
         await session.abortTransaction();
-        session.endSession();
+
         return res.status(404).json({
           status: false,
           message: "Restaurant not found",
@@ -871,14 +872,14 @@ class AuthController {
 
       if (restaurant.status !== "approved") {
         await session.abortTransaction();
-        session.endSession();
+
         return res.status(400).json({
           status: false,
           message: "Restaurant is not available",
         });
       }
 
-      // Validate address
+
       let { address } = req.body;
 
       if (
@@ -887,7 +888,7 @@ class AuthController {
         address.trim().length < 5
       ) {
         await session.abortTransaction();
-        session.endSession();
+
         return res.status(400).json({
           status: false,
           message: "Valid delivery address required",
@@ -896,83 +897,175 @@ class AuthController {
 
       address = address.trim();
 
-      // Fetch foods
+
       const foodIds = cart.items.map((item) => item.food);
 
-      const foods = await Food.find({ _id: { $in: foodIds } }).session(session);
+
+      const foods = await Food.find({
+        _id: {
+          $in: foodIds,
+        },
+      }).session(session);
 
       if (foods.length !== cart.items.length) {
         await session.abortTransaction();
-        session.endSession();
+
         return res.status(400).json({
           status: false,
           message: "Some food items not found",
         });
       }
 
-      //  Build food map
+
       const foodMap = {};
-      foods.forEach((f) => {
-        foodMap[f._id.toString()] = f;
+
+      foods.forEach((food) => {
+        foodMap[food._id.toString()] = food;
       });
 
-      //  Prepare order items
+
       const orderItems = [];
+
       let totalAmount = 0;
 
-      for (let item of cart.items) {
+      for (const item of cart.items) {
         const food = foodMap[item.food.toString()];
 
-        if (!food || !food.isAvailable) {
-          throw new Error("Some food items are not available");
+
+        if (!food) {
+          throw new Error(
+            `Food item not found: ${item.food}`
+          );
         }
 
-        // Restaurant consistency
-        if (food.restaurant.toString() !== cart.restaurant.toString()) {
-          throw new Error("Invalid cart items (multiple restaurants)");
+
+        if (!food.isAvailable) {
+          throw new Error(
+            `${food.itemName || "Food item"} is not available`
+          );
         }
 
-        if (item.quantity <= 0) {
-          throw new Error("Invalid quantity");
+
+        if (
+          food.restaurant.toString() !==
+          cart.restaurant.toString()
+        ) {
+          throw new Error(
+            "Invalid cart items: multiple restaurants"
+          );
         }
 
-        const price = food.price;
+        const quantity = Number(item.quantity);
+
+        if (
+          !Number.isInteger(quantity) ||
+          quantity <= 0
+        ) {
+          throw new Error(
+            `Invalid quantity for food: ${food.itemName || food._id}`
+          );
+        }
+
+
+        let price;
+
+        if (
+          food.discountPrice !== undefined &&
+          food.discountPrice !== null &&
+          food.discountPrice !== ""
+        ) {
+          price = Number(food.discountPrice);
+        } else {
+          price = Number(food.basePrice);
+        }
+
+
+        if (
+          !Number.isFinite(price) ||
+          price <= 0
+        ) {
+          throw new Error(
+            `Invalid price for food: ${food.itemName || food._id
+            }`
+          );
+        }
+
+
+        const itemTotal = price * quantity;
+
+        if (!Number.isFinite(itemTotal)) {
+          throw new Error(
+            `Invalid item total for food: ${food.itemName || food._id
+            }`
+          );
+        }
 
         orderItems.push({
           food: food._id,
-          quantity: item.quantity,
-          price,
+          quantity: quantity,
+          price: price,
         });
 
-        totalAmount += price * item.quantity;
+
+        totalAmount += itemTotal;
       }
 
-      //  Create order
+
+      if (
+        !Number.isFinite(totalAmount) ||
+        totalAmount <= 0
+      ) {
+        throw new Error("Invalid total amount");
+      }
+
+
+      totalAmount = Number(totalAmount.toFixed(2));
+
+
       const order = await Order.create(
         [
           {
             user: req.user.id,
+
             restaurant: cart.restaurant,
+
             items: orderItems,
-            totalAmount,
-            address,
+
+            totalAmount: totalAmount,
+
+            address: address,
+
             status: "placed",
           },
         ],
-        { session },
+        {
+          session,
+        }
       );
 
-      //  Clear cart
-      await Cart.findOneAndDelete({ user: req.user.id }).session(session);
 
-      // Commit transaction
+      await Cart.findOneAndDelete({
+        user: req.user.id,
+      }).session(session);
+
+
       await session.commitTransaction();
+
       session.endSession();
 
-      //  Populate for response (UX improvement)
-      const populatedOrder = await Order.findById(order[0]._id)
-        .populate("restaurant", "name")
-        .populate("items.food", "name price");
+
+      const populatedOrder = await Order.findById(
+        order[0]._id
+      )
+        .populate(
+          "restaurant",
+          "name"
+        )
+        .populate(
+          "items.food",
+          "itemName basePrice discountPrice image foodType isVeg category cuisine"
+        );
+
 
       return res.status(201).json({
         status: true,
@@ -980,18 +1073,26 @@ class AuthController {
         data: populatedOrder,
       });
     } catch (err) {
-      await session.abortTransaction();
+
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
+
       session.endSession();
 
-      console.error(err);
+      console.error(
+        "Place Order Error:",
+        err
+      );
 
       return res.status(500).json({
         status: false,
-        message: err.message || "Internal server error",
+        message:
+          err.message ||
+          "Internal server error",
       });
     }
   }
-
   async myOrder(req, res) {
     try {
       const orders = await Order.find({ user: req.user.id })

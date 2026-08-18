@@ -949,3 +949,6 @@
 {"level":"info","message":"Connecting to Redis at redis://127.0.0.1:6379...","service":"air-india-service","timestamp":"2026-08-18 12:47:31"}
 {"level":"info","message":"Connecting to Redis at redis://127.0.0.1:6379...","service":"air-india-service","timestamp":"2026-08-18 12:47:48"}
 {"level":"info","message":"Connecting to Redis at redis://127.0.0.1:6379...","service":"air-india-service","timestamp":"2026-08-18 12:48:26"}
+{"level":"info","message":"Connecting to Redis at redis://127.0.0.1:6379...","service":"air-india-service","timestamp":"2026-08-18 13:49:19"}
+{"level":"info","message":"Connecting to Redis at redis://127.0.0.1:6379...","service":"air-india-service","timestamp":"2026-08-18 13:59:24"}
+{"level":"info","message":"Connecting to Redis at redis://127.0.0.1:6379...","service":"air-india-service","timestamp":"2026-08-18 14:28:58"}
