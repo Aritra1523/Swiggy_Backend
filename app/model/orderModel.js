@@ -10,7 +10,7 @@ const orderSchema = new mongoose.Schema(
 
     restaurant: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "restaurant",
+      ref: "estaurant",
       required: true,
     },
 
