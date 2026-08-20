@@ -1106,7 +1106,7 @@ class AuthController {
       const orders = await Order.find({
         user: req.user.id,
       })
-        .populate("restaurant", "name")
+        .populate("restaurant", "restaurantName")
         .populate(
           "items.food",
           "itemName basePrice discountPrice image foodType isVeg"
@@ -1127,11 +1127,12 @@ class AuthController {
     }
   }
 
+  
   async singleOrder(req, res) {
     try {
       const { id } = req.params;
 
-      //  Validate ID
+      // Validate ID
       if (!mongoose.Types.ObjectId.isValid(id)) {
         return res.status(400).json({
           status: false,
@@ -1139,6 +1140,7 @@ class AuthController {
         });
       }
 
+      // Only user can see order details
       if (req.user.role !== "user") {
         return res.status(403).json({
           status: false,
@@ -1146,10 +1148,14 @@ class AuthController {
         });
       }
 
-      //  Find order
+      // Find order
       const order = await Order.findById(id)
-        .populate("restaurant", "name")
-        .populate("items.food", "name price");
+        .populate("user", "name email phone")
+        .populate("restaurant", "restaurantName")
+        .populate(
+          "items.food",
+          "itemName basePrice discountPrice image foodType isVeg category cuisine"
+        );
 
       if (!order) {
         return res.status(404).json({
@@ -1158,8 +1164,8 @@ class AuthController {
         });
       }
 
-      //  Security: only owner can access
-      if (order.user.toString() !== req.user.id) {
+      // Security: only order owner can access
+      if (order.user._id.toString() !== req.user.id.toString()) {
         return res.status(403).json({
           status: false,
           message: "Access denied",
@@ -1169,10 +1175,11 @@ class AuthController {
       return res.status(200).json({
         status: true,
         data: order,
-        message: "Order fetch successfully",
+        message: "Order fetched successfully",
       });
     } catch (err) {
-      console.error(err);
+      console.error("Single Order Error:", err);
+
       return res.status(500).json({
         status: false,
         message: "Failed to fetch order",
@@ -1193,14 +1200,12 @@ class AuthController {
         });
       }
 
-
       if (req.user.role !== "user") {
         return res.status(403).json({
           status: false,
           message: "Only users can cancel orders",
         });
       }
-
 
       if (order.user.toString() !== req.user.id.toString()) {
         return res.status(403).json({
@@ -1209,7 +1214,8 @@ class AuthController {
         });
       }
 
-      if (!["placed", "confirmed"].includes(order.status)) {
+      // User can cancel only before preparing
+      if (!["placed", "accepted"].includes(order.status)) {
         return res.status(400).json({
           status: false,
           message: `Order cannot be cancelled when status is ${order.status}`,
@@ -1230,119 +1236,120 @@ class AuthController {
 
       return res.status(500).json({
         status: false,
-        message: err.message,
+        message: "Failed to cancel order",
       });
     }
   }
-async updateOrderStatus(req, res) {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
 
-    const allowedStatuses = [
-      "accepted",
-      "preparing",
-      "out_for_delivery",
-      "delivered",
-      "cancelled",
-    ];
+  async updateOrderStatus(req, res) {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
 
-    if (!status) {
-      return res.status(400).json({
-        status: false,
-        message: "Order status is required",
-      });
-    }
+      const allowedStatuses = [
+        "accepted",
+        "preparing",
+        "out_for_delivery",
+        "delivered",
+        "cancelled",
+      ];
 
-    if (!allowedStatuses.includes(status)) {
-      return res.status(400).json({
-        status: false,
-        message: "Invalid order status",
-      });
-    }
+      if (!status) {
+        return res.status(400).json({
+          status: false,
+          message: "Order status is required",
+        });
+      }
 
-    const order = await Order.findById(id);
+      if (!allowedStatuses.includes(status)) {
+        return res.status(400).json({
+          status: false,
+          message: "Invalid order status",
+        });
+      }
 
-    if (!order) {
-      return res.status(404).json({
-        status: false,
-        message: "Order not found",
-      });
-    }
+      const order = await Order.findById(id);
 
-    const allowedTransitions = {
-      placed: ["accepted", "cancelled"],
-
-      accepted: ["preparing", "cancelled"],
-
-      preparing: ["out_for_delivery", "cancelled"],
-
-      out_for_delivery: ["delivered"],
-
-      delivered: [],
-
-      cancelled: [],
-    };
-
-    const currentStatus = order.status;
-
-    const nextStatuses = allowedTransitions[currentStatus];
-
-    if (!nextStatuses) {
-      return res.status(400).json({
-        status: false,
-        message: `Invalid current order status: ${currentStatus}`,
-      });
-    }
-
-    if (!nextStatuses.includes(status)) {
-      return res.status(400).json({
-        status: false,
-        message: `Cannot change status from ${currentStatus} to ${status}`,
-      });
-    }
-
-    if (req.user.role === "restaurant_owner") {
-      const restaurant = await Restaurant.findById(
-        order.restaurant
-      ).select("owner");
-
-      if (!restaurant) {
+      if (!order) {
         return res.status(404).json({
           status: false,
-          message: "Restaurant not found",
+          message: "Order not found",
         });
       }
 
-      if (restaurant.owner.toString() !== req.user.id.toString()) {
-        return res.status(403).json({
+      const allowedTransitions = {
+        placed: ["accepted", "cancelled"],
+
+        accepted: ["preparing", "cancelled"],
+
+        preparing: ["out_for_delivery", "cancelled"],
+
+        out_for_delivery: ["delivered"],
+
+        delivered: [],
+
+        cancelled: [],
+      };
+
+      const currentStatus = order.status;
+
+      const nextStatuses = allowedTransitions[currentStatus];
+
+      if (!nextStatuses) {
+        return res.status(400).json({
           status: false,
-          message: "You cannot update this order",
+          message: `Invalid current order status: ${currentStatus}`,
         });
       }
+
+      if (!nextStatuses.includes(status)) {
+        return res.status(400).json({
+          status: false,
+          message: `Cannot change status from ${currentStatus} to ${status}`,
+        });
+      }
+
+      if (req.user.role === "restaurant_owner") {
+        const restaurant = await Restaurant.findById(
+          order.restaurant
+        ).select("owner");
+
+        if (!restaurant) {
+          return res.status(404).json({
+            status: false,
+            message: "Restaurant not found",
+          });
+        }
+
+        if (restaurant.owner.toString() !== req.user.id.toString()) {
+          return res.status(403).json({
+            status: false,
+            message: "You cannot update this order",
+          });
+        }
+      }
+
+      order.status = status;
+
+      await order.save();
+
+      return res.status(200).json({
+        status: true,
+        message: "Order status updated successfully",
+        data: {
+          orderId: order._id,
+          previousStatus: currentStatus,
+          currentStatus: order.status,
+        },
+      });
+    } catch (error) {
+      console.error("Update Order Status Error:", error);
+
+      return res.status(500).json({
+        status: false,
+        message: error.message || "Internal server error",
+      });
     }
-
-    order.status = status;
-
-    await order.save();
-
-    return res.status(200).json({
-      status: true,
-      message: "Order status updated successfully",
-      data: {
-        orderId: order._id,
-        previousStatus: currentStatus,
-        currentStatus: order.status,
-      },
-    });
-  } catch (error) {
-    console.error("Update Order Status Error:", error);
-
-    return res.status(500).json({
-      status: false,
-      message: error.message || "Internal server error",
-    });
   }
-}
 }
 module.exports = new AuthController();
