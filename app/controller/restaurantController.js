@@ -994,10 +994,10 @@ class restaurantController {
     try {
       const { id } = req.params;
 
-      const item = await Food.findByIdAndUpdate(id,
-        { returnDocument: "after" }
-      );
-
+      // const item = await Food.findByIdAndUpdate(id,
+      //   { returnDocument: "after" }
+      // );   eta sir er code
+const item = await Food.findById(id);// eta ami likechi
       if (!item) {
         return res.status(404).json({
           success: false,
@@ -1104,7 +1104,8 @@ class restaurantController {
       const restaurant = await RestaurantSchema.findByIdAndUpdate(
         req.restaurant._id,
         { isOpen },
-        { returnDocument: "after" }
+        // { returnDocument: "after" }// eta sir er code
+        { new: true }//eta ami likhechi
       );
 
       // Socket notification

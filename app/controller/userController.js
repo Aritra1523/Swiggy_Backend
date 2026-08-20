@@ -27,7 +27,7 @@ class UserController {
                 })
                 .populate(
                     "restaurant",
-                    "restaurantName location status"
+                    "restaurantName location status isOpen"// ekhane isOpen ta ddd korechi
                 );
 
             const response = {
