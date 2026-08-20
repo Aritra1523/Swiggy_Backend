@@ -992,11 +992,11 @@ class restaurantController {
     try {
       const { id } = req.params;
 
-      const item = await Food.findByIdAndUpdate(id,
-        { returnDocument: "after" }
-      );
+      // const item = await Food.findByIdAndUpdate(id,
+      //   { returnDocument: "after" }
+      // );
 
-      // const item = await Food.findById(id);
+      const item = await Food.findById(id);
 
       if (!item) {
         return res.status(404).json({
