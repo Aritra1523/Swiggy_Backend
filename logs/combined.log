@@ -1121,3 +1121,4 @@
 >>>>>>> 92a433a18521368aed7b1e408ccae35f727962ee
 {"level":"info","message":"Connecting to Redis at redis://127.0.0.1:6379...","service":"air-india-service","timestamp":"2026-08-20 14:53:38"}
 {"level":"info","message":"Connecting to Redis at redis://127.0.0.1:6379...","service":"air-india-service","timestamp":"2026-08-20 18:01:48"}
+{"level":"info","message":"Connecting to Redis at redis://127.0.0.1:6379...","service":"air-india-service","timestamp":"2026-08-20 18:35:17"}
