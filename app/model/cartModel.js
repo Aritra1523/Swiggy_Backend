@@ -10,7 +10,11 @@ const cartSchema = new mongoose.Schema(
 
     restaurant: {
       type: mongoose.Schema.Types.ObjectId,
+<<<<<<< HEAD
       ref: "Restaurant",
+=======
+      ref: "Restaurant", 
+>>>>>>> 34c31fa28912b54e43561fb11e94d8e9418f5660
       required: true,
     },
 
@@ -33,7 +37,7 @@ const cartSchema = new mongoose.Schema(
       default: 0,
     },
   },
-  { timestamps: true },
+  { timestamps: true }
 );
 
 module.exports = mongoose.model("Cart", cartSchema);
