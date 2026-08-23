@@ -83,6 +83,37 @@ class AuthController {
     }
   }
 
+
+
+async logout(req, res) {
+  try {
+    if (req.user?.id) {
+      await User.findByIdAndUpdate(req.user.id, {
+        $unset: { refreshToken: 1 },
+      });
+    }
+
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      sameSite: "strict",
+    });
+
+    return res.status(200).json({
+      status: true,
+      message: "Logged out successfully",
+    });
+  } catch (error) {
+    console.error("Logout error:", error);
+
+    return res.status(500).json({
+      status: false,
+      message: "Something went wrong while logging out",
+    });
+  }
+}
+
+
+
   async userOtp(req, res) {
     try {
       const { error, value } = otpValidate.validate(req.body);
