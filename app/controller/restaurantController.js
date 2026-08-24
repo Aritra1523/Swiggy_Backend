@@ -560,8 +560,7 @@ class restaurantController {
         status: restaurant.status,
       });
 
-      // ---------------- STEP VALIDATION ----------------
-      // Contract allowed only after documents step
+    
       if (restaurant.onboardingStep < 2) {
         return res.status(400).json({
           success: false,
@@ -569,7 +568,7 @@ class restaurantController {
         });
       }
 
-      // Already accepted check
+  
       if (restaurant.contract?.accepted) {
         return res.status(409).json({
           success: false,
@@ -577,7 +576,6 @@ class restaurantController {
         });
       }
 
-      // ---------------- REQUIRED SECTION CHECK ----------------
       const requiredSections = [
         "terms_of_service",
         "commission_payment_terms",
@@ -596,7 +594,6 @@ class restaurantController {
         });
       }
 
-      // ---------------- SAVE CONTRACT ----------------
       restaurant.contract = {
         accepted: true,
         acceptedAt: date || new Date(),
@@ -614,7 +611,6 @@ class restaurantController {
         deviceInfo: req.headers["user-agent"],
       };
 
-      // ---------------- UPDATE ONBOARDING ----------------
       restaurant.onboardingStep = 3;
       restaurant.status = "review_pending";
 
@@ -639,7 +635,6 @@ class restaurantController {
       });
     }
   }
-
 
   async addFood(req, res) {
     try {
@@ -811,6 +806,7 @@ class restaurantController {
       const restaurant = await RestaurantSchema.findOne({
         owner: req.user.id,
       });
+
       if (!restaurant) {
         return res.status(404).json({
           success: false,
@@ -840,9 +836,13 @@ class restaurantController {
         {
           $match: {
             restaurant: restaurant._id,
+
+            approvalStatus: "approved",
+
             isDeleted: false,
           },
         },
+
         {
           $lookup: {
             from: "restaurants",
@@ -851,9 +851,11 @@ class restaurantController {
             as: "restaurant",
           },
         },
+
         {
           $unwind: "$restaurant",
         },
+
         {
           $project: {
             _id: 1,
@@ -875,27 +877,53 @@ class restaurantController {
             totalOrders: 1,
             isAvailable: 1,
             isRecommended: 1,
+            approvalStatus: 1,
             createdAt: 1,
-            restaurantName: "$restaurant.restaurantName",
-            restaurantEmail: "$restaurant.email",
-            restaurantPhone: "$restaurant.phone",
+
+            restaurantName:
+              "$restaurant.restaurantName",
+
+            restaurantEmail:
+              "$restaurant.email",
+
+            restaurantPhone:
+              "$restaurant.phone",
           },
         },
+
         {
           $facet: {
             data: [
-              { $sort: { createdAt: -1 } },
-              { $skip: skip },
-              { $limit: limit },
+              {
+                $sort: {
+                  createdAt: -1,
+                },
+              },
+              {
+                $skip: skip,
+              },
+              {
+                $limit: limit,
+              },
             ],
-            totalCount: [{ $count: "count" }],
+
+            totalCount: [
+              {
+                $count: "count",
+              },
+            ],
           },
         },
       ]);
 
       const foods = result[0]?.data || [];
-      const total = result[0]?.totalCount?.[0]?.count || 0;
-      const totalPages = Math.ceil(total / limit);
+
+      const total =
+        result[0]?.totalCount?.[0]?.count || 0;
+
+      const totalPages = Math.ceil(
+        total / limit
+      );
 
       const response = {
         pagination: {
@@ -907,7 +935,11 @@ class restaurantController {
         data: foods,
       };
 
-      await setCache(cacheKey, response, 60);
+      await setCache(
+        cacheKey,
+        response,
+        60
+      );
 
       return res.status(200).json({
         success: true,
@@ -916,6 +948,11 @@ class restaurantController {
         ...response,
       });
     } catch (error) {
+      console.error(
+        "Get All Foods Error:",
+        error
+      );
+
       return res.status(500).json({
         success: false,
         message: error.message,
@@ -1152,6 +1189,7 @@ class restaurantController {
       });
     }
   }
+
   async restaurantOrders(req, res) {
     try {
       const restaurantId = req.restaurant?._id;
