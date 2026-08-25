@@ -10,11 +10,9 @@ function initSocket(server) {
     },
   });
 
-  // Client connected
   io.on("connection", (socket) => {
     console.log("Socket connected:", socket.id);
 
-    // Restaurant owner joins restaurant room
     socket.on("restaurant:join", (restaurantId) => {
       if (!restaurantId) {
         console.log("Restaurant ID missing");
@@ -26,14 +24,14 @@ function initSocket(server) {
       socket.join(room);
 
       console.log(
-        `Socket ${socket.id} joined room: ${room}`,
+        `Socket ${socket.id} joined room: ${room}`
       );
     });
 
     socket.on("disconnect", () => {
       console.log(
         "Socket disconnected:",
-        socket.id,
+        socket.id
       );
     });
   });
@@ -43,7 +41,7 @@ function initSocket(server) {
 
 function getIO() {
   if (!io) {
-    throw new Error("Socket.IO not initialized");
+    throw new Error("Socket.IO has not been initialized");
   }
 
   return io;
