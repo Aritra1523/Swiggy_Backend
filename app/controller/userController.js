@@ -13,35 +13,7 @@ class UserController {
             ? `foods:search:${search.toLowerCase()}`
             : "foods";
 
-<<<<<<< HEAD
-            if (cacheFoods) {
-                return res.status(200).json({
-                    success: true,
-                    fromCache: true,
-                    message: "Food list fetched successfully.",
-                    data: cacheFoods.data,
-                });
-            }
-
-            const foods = await foodModel
-                .find({
-                    isDeleted: false,
-                    isAvailable: true,
-                    approvalStatus: "approved",
-                })
-                .populate(
-                    "restaurant",
-                    "restaurantName location status isOpen"// ekhane isOpen ta ddd korechi
-                );
-
-            const response = {
-                data: foods,
-            };
-
-            await setCache(cachekey, response, 60);
-=======
         const cacheFoods = await getCache(cachekey);
->>>>>>> 38723565353ad8ab823254330b89cdc62d47e9d9
 
         if (cacheFoods) {
             return res.status(200).json({
