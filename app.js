@@ -10,6 +10,7 @@ const AuthRoute = require("./app/routes/authRoutes");
 const AdminRoute = require("./app/routes/adminRoutes");
 const restaurantRoute = require("./app/routes/restaurantRoutes");
 const userRoute = require("./app/routes/userRoutes");
+const deliveryRoute = require("./app/routes/deliveryRoutes");
 
 const connectDB = require("./config/dbcon");
 const { initSocket } = require("./app/socket/socket");
@@ -59,7 +60,7 @@ app.use(AuthRoute);
 app.use(AdminRoute);
 app.use(restaurantRoute);
 app.use(userRoute);
-
+app.use(deliveryRoute)
 // Server
 const PORT = process.env.PORT || 4000;
 

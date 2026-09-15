@@ -443,7 +443,8 @@ class AuthController {
           message: "Restaurant is not available",
         });
       }
-
+      ///////////////////////////
+// 
       const openingClosing = restaurant.openingClosing;
 
       if (
@@ -1293,6 +1294,7 @@ class AuthController {
       const allowedStatuses = [
         "accepted",
         "preparing",
+        "ready",
         "out_for_delivery",
         "delivered",
         "cancelled",
@@ -1324,7 +1326,8 @@ class AuthController {
       const allowedTransitions = {
         placed: ["accepted", "cancelled"],
         accepted: ["preparing", "cancelled"],
-        preparing: ["out_for_delivery", "cancelled"],
+  preparing: ["ready", "cancelled"],
+         ready: ["out_for_delivery"],
         out_for_delivery: ["delivered"],
         delivered: [],
         cancelled: [],
