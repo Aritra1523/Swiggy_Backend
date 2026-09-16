@@ -618,7 +618,7 @@ class restaurantController {
 
       return res.status(200).json({
         success: true,
-        message: "Partner contract accepted successfully",
+        message: "Partner contract Send to Admin successfully",
         data: {
           onboardingStep: restaurant.onboardingStep,
           status: restaurant.status,
