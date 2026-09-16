@@ -16,9 +16,9 @@ const {
 } = require("../validator/deliveryValidate");
 
 class deliveryController {
-  // =====================================================
+
   // STEP 0: APPLY FOR DELIVERY PARTNER (sends OTP)
-  // =====================================================
+
   async applyDelivery(req, res) {
     try {
       const userId = req.user?.id;
@@ -112,9 +112,9 @@ class deliveryController {
     }
   }
 
-  // =====================================================
+
   // STEP 0b: VERIFY DELIVERY OTP
-  // =====================================================
+
   async verifyDeliveryOtp(req, res) {
     try {
       const { email, otp } = req.body;
@@ -178,9 +178,9 @@ class deliveryController {
     }
   }
 
-  // =====================================================
+
   // STEP 0c: RESEND DELIVERY OTP
-  // =====================================================
+
   async resendDeliveryOtp(req, res) {
     try {
       const { email } = req.body;
@@ -237,9 +237,9 @@ class deliveryController {
     }
   }
 
-  // =====================================================
+
   // STEP 1: DELIVERY PARTNER DETAILS
-  // =====================================================
+
   async deliveryDetails(req, res) {
     try {
       const { error, value } = deliveryDetailsValidate.validate(req.body);
@@ -296,9 +296,9 @@ class deliveryController {
     }
   }
 
-  // =====================================================
+
   // STEP 2: DELIVERY PARTNER DOCUMENTS
-  // =====================================================
+
   async deliveryDoc(req, res) {
     try {
       const { error, value } = deliveryDocumentsValidate.validate(req.body);
@@ -354,9 +354,9 @@ class deliveryController {
     }
   }
 
-  // =====================================================
+
   // STEP 3: ACCEPT DELIVERY PARTNER CONTRACT
-  // =====================================================
+
   async acceptDeliveryContract(req, res) {
     try {
       const { error, value } = deliveryContractSchema.validate(req.body, {
@@ -456,9 +456,9 @@ class deliveryController {
     }
   }
 
-  // =====================================================
+
   // GET MY DELIVERY PROFILE (used by the dashboard)
-  // =====================================================
+
   async getMyDeliveryProfile(req, res) {
     try {
       const partner = await DeliveryPartner.findOne({
@@ -484,48 +484,70 @@ class deliveryController {
     }
   }
 
-  // =====================================================
+
   // TOGGLE ONLINE / OFFLINE (dashboard action)
-  // =====================================================
-  async toggleOnline(req, res) {
-    try {
-      const partner = await DeliveryPartner.findOne({
-        owner: req.user.id,
-      });
 
-      if (!partner) {
-        return res.status(404).json({
-          status: false,
-          message: "Delivery partner profile not found",
-        });
-      }
+ // =====================================================
+// TOGGLE ONLINE / OFFLINE
+// Cannot go offline while an active order exists
+// =====================================================
+async toggleOnline(req, res) {
+  try {
+    const partner = await DeliveryPartner.findOne({
+      owner: req.user.id,
+    });
 
-      if (partner.status !== "approved") {
-        return res.status(403).json({
-          status: false,
-          message: "Your account is not approved yet",
-        });
-      }
-
-      partner.isOnline = !partner.isOnline;
-      await partner.save();
-
-      return res.status(200).json({
-        status: true,
-        message: `You are now ${partner.isOnline ? "online" : "offline"}`,
-        data: { isOnline: partner.isOnline },
-      });
-    } catch (error) {
-      return res.status(500).json({
+    if (!partner) {
+      return res.status(404).json({
         status: false,
-        message: error.message || "Internal server error",
+        message: "Delivery partner profile not found",
       });
     }
+
+    if (partner.status !== "approved") {
+      return res.status(403).json({
+        status: false,
+        message: "Your account is not approved yet",
+      });
+    }
+
+    // IMPORTANT:
+    // Partner cannot go offline while delivering an order
+    if (partner.isOnline && partner.currentOrder) {
+      return res.status(400).json({
+        status: false,
+        message:
+          "You cannot go offline while you have an active delivery",
+      });
+    }
+
+    partner.isOnline = !partner.isOnline;
+
+    await partner.save();
+
+    return res.status(200).json({
+      status: true,
+      message: `You are now ${
+        partner.isOnline ? "online" : "offline"
+      }`,
+      data: {
+        isOnline: partner.isOnline,
+        currentOrder: partner.currentOrder || null,
+      },
+    });
+  } catch (error) {
+    console.error("Toggle Online Error:", error);
+
+    return res.status(500).json({
+      status: false,
+      message: error.message || "Internal server error",
+    });
   }
-  // =====================================================
+}
+
   // GET AVAILABLE ORDERS
   // Only READY orders without a delivery partner
-  // =====================================================
+
   async availableOrders(req, res) {
     try {
       const partner = await DeliveryPartner.findOne({
@@ -588,9 +610,9 @@ class deliveryController {
     }
   }
 
-  // =====================================================
+
   // ACCEPT DELIVERY ORDER
-  // =====================================================
+
   async acceptOrder(req, res) {
     const session = await mongoose.startSession();
 
@@ -731,9 +753,9 @@ class deliveryController {
     }
   }
 
-  // =====================================================
+
   // GET ACTIVE DELIVERY
-  // =====================================================
+
   async activeOrder(req, res) {
     try {
       const partner = await DeliveryPartner.findOne({
@@ -785,240 +807,280 @@ class deliveryController {
     }
   }
 
-  // =====================================================
+
   // MARK ORDER AS PICKED UP
-  // =====================================================
-  async pickupOrder(req, res) {
-    try {
-      const { orderId } = req.params;
 
-      const partner = await DeliveryPartner.findOne({
-        owner: req.user.id,
-      });
+ 
+async pickupOrder(req, res) {
+  try {
+    const { orderId } = req.params;
 
-      if (!partner) {
-        return res.status(404).json({
-          status: false,
-          message: "Delivery partner profile not found",
-        });
-      }
+    const partner = await DeliveryPartner.findOne({
+      owner: req.user.id,
+    });
 
-      if (partner.status !== "approved") {
-        return res.status(403).json({
-          status: false,
-          message: "Your account is not approved",
-        });
-      }
-
-      const order = await Order.findOne({
-        _id: orderId,
-        deliveryPartner: partner._id,
-        deliveryStatus: "accepted",
-      });
-
-      if (!order) {
-        return res.status(404).json({
-          status: false,
-          message: "Active delivery order not found",
-        });
-      }
-
-      order.deliveryStatus = "picked_up";
-      order.pickedUpAt = new Date();
-
-      await order.save();
-
-      return res.status(200).json({
-        status: true,
-        message: "Order picked up successfully",
-        data: order,
-      });
-    } catch (error) {
-      console.error("Pickup Order Error:", error);
-
-      return res.status(500).json({
+    if (!partner) {
+      return res.status(404).json({
         status: false,
-        message: error.message || "Internal server error",
+        message: "Delivery partner profile not found",
       });
     }
-  }
 
-  // =====================================================
+    if (partner.status !== "approved") {
+      return res.status(403).json({
+        status: false,
+        message: "Your account is not approved",
+      });
+    }
+
+    // IMPORTANT
+    if (!partner.isOnline) {
+      return res.status(403).json({
+        status: false,
+        message: "You must be online to pick up an order",
+      });
+    }
+
+    const order = await Order.findOne({
+      _id: orderId,
+      deliveryPartner: partner._id,
+      deliveryStatus: "accepted",
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        status: false,
+        message: "Active delivery order not found",
+      });
+    }
+
+    order.deliveryStatus = "picked_up";
+    order.pickedUpAt = new Date();
+
+    await order.save();
+
+    return res.status(200).json({
+      status: true,
+      message: "Order picked up successfully",
+      data: order,
+    });
+  } catch (error) {
+    console.error("Pickup Order Error:", error);
+
+    return res.status(500).json({
+      status: false,
+      message: error.message || "Internal server error",
+    });
+  }
+}
+
+
   // MARK ORDER AS OUT FOR DELIVERY
-  // =====================================================
-  async outForDelivery(req, res) {
-    try {
-      const { orderId } = req.params;
 
-      const partner = await DeliveryPartner.findOne({
-        owner: req.user.id,
-      });
+ 
+async outForDelivery(req, res) {
+  try {
+    const { orderId } = req.params;
 
-      if (!partner) {
-        return res.status(404).json({
-          status: false,
-          message: "Delivery partner profile not found",
-        });
-      }
+    const partner = await DeliveryPartner.findOne({
+      owner: req.user.id,
+    });
 
-      const order = await Order.findOne({
-        _id: orderId,
-        deliveryPartner: partner._id,
-        deliveryStatus: "picked_up",
-      });
-
-      if (!order) {
-        return res.status(404).json({
-          status: false,
-          message: "Order must be picked up first",
-        });
-      }
-
-      order.deliveryStatus = "out_for_delivery";
-
-      // Main order status also changes
-      order.status = "out_for_delivery";
-
-      await order.save();
-
-      // Notify customer
-      try {
-        const io = getIO();
-
-        io.to(`user_${order.user.toString()}`).emit(
-          "order:out-for-delivery",
-          {
-            orderId: order._id,
-            message: "Your order is out for delivery",
-          }
-        );
-      } catch (socketError) {
-        console.log("Socket notification error:", socketError.message);
-      }
-
-      return res.status(200).json({
-        status: true,
-        message: "Order is now out for delivery",
-        data: order,
-      });
-    } catch (error) {
-      console.error("Out For Delivery Error:", error);
-
-      return res.status(500).json({
+    if (!partner) {
+      return res.status(404).json({
         status: false,
-        message: error.message || "Internal server error",
+        message: "Delivery partner profile not found",
       });
     }
-  }
 
-  // =====================================================
-  // MARK ORDER AS DELIVERED
-  // =====================================================
-  async deliverOrder(req, res) {
-    const session = await mongoose.startSession();
+    if (partner.status !== "approved") {
+      return res.status(403).json({
+        status: false,
+        message: "Your account is not approved",
+      });
+    }
 
+    // IMPORTANT
+    if (!partner.isOnline) {
+      return res.status(403).json({
+        status: false,
+        message: "You must be online to continue delivery",
+      });
+    }
+
+    const order = await Order.findOne({
+      _id: orderId,
+      deliveryPartner: partner._id,
+      deliveryStatus: "picked_up",
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        status: false,
+        message: "Order must be picked up first",
+      });
+    }
+
+    order.deliveryStatus = "out_for_delivery";
+    order.status = "out_for_delivery";
+
+    await order.save();
+
+    // Notify customer
     try {
-      session.startTransaction();
+      const io = getIO();
 
-      const { orderId } = req.params;
-
-      const partner = await DeliveryPartner.findOne({
-        owner: req.user.id,
-      }).session(session);
-
-      if (!partner) {
-        await session.abortTransaction();
-
-        return res.status(404).json({
-          status: false,
-          message: "Delivery partner profile not found",
-        });
-      }
-
-      // -----------------------------------------
-      // Find active order
-      // -----------------------------------------
-      const order = await Order.findOne({
-        _id: orderId,
-        deliveryPartner: partner._id,
-        deliveryStatus: "out_for_delivery",
-      }).session(session);
-
-      if (!order) {
-        await session.abortTransaction();
-
-        return res.status(404).json({
-          status: false,
-          message: "Order is not ready to be delivered",
-        });
-      }
-
-      // -----------------------------------------
-      // Complete order
-      // -----------------------------------------
-      order.deliveryStatus = "delivered";
-      order.status = "delivered";
-      order.deliveredAt = new Date();
-
-      await order.save({ session });
-
-      // -----------------------------------------
-      // Clear partner's active order
-      // -----------------------------------------
-      partner.currentOrder = null;
-
-      await partner.save({ session });
-
-      await session.commitTransaction();
-      session.endSession();
-
-      // -----------------------------------------
-      // Notify customer
-      // -----------------------------------------
-      try {
-        const io = getIO();
-
-        io.to(`user_${order.user.toString()}`).emit(
-          "order:delivered",
-          {
-            orderId: order._id,
-            message: "Your order has been delivered",
-          }
-        );
-      } catch (socketError) {
-        console.log("Socket notification error:", socketError.message);
-      }
-
-      return res.status(200).json({
-        status: true,
-        message: "Order delivered successfully",
-        data: {
+      io.to(`user_${order.user.toString()}`).emit(
+        "order:out-for-delivery",
+        {
           orderId: order._id,
-          status: order.status,
-          deliveryStatus: order.deliveryStatus,
-          deliveryFee: order.deliveryFee,
-          deliveredAt: order.deliveredAt,
-        },
-      });
-    } catch (error) {
-      if (session.inTransaction()) {
-        await session.abortTransaction();
-      }
+          message: "Your order is out for delivery",
+        }
+      );
+    } catch (socketError) {
+      console.log(
+        "Socket notification error:",
+        socketError.message
+      );
+    }
 
-      session.endSession();
+    return res.status(200).json({
+      status: true,
+      message: "Order is now out for delivery",
+      data: order,
+    });
+  } catch (error) {
+    console.error("Out For Delivery Error:", error);
 
-      console.error("Deliver Order Error:", error);
+    return res.status(500).json({
+      status: false,
+      message: error.message || "Internal server error",
+    });
+  }
+}
 
-      return res.status(500).json({
+
+  // MARK ORDER AS DELIVERED
+
+ 
+async deliverOrder(req, res) {
+  const session = await mongoose.startSession();
+
+  try {
+    session.startTransaction();
+
+    const { orderId } = req.params;
+
+    const partner = await DeliveryPartner.findOne({
+      owner: req.user.id,
+    }).session(session);
+
+    if (!partner) {
+      await session.abortTransaction();
+
+      return res.status(404).json({
         status: false,
-        message: error.message || "Internal server error",
+        message: "Delivery partner profile not found",
       });
     }
-  }
 
-  // =====================================================
+    if (partner.status !== "approved") {
+      await session.abortTransaction();
+
+      return res.status(403).json({
+        status: false,
+        message: "Your account is not approved",
+      });
+    }
+
+    // IMPORTANT
+    if (!partner.isOnline) {
+      await session.abortTransaction();
+
+      return res.status(403).json({
+        status: false,
+        message: "You must be online to deliver the order",
+      });
+    }
+
+    const order = await Order.findOne({
+      _id: orderId,
+      deliveryPartner: partner._id,
+      deliveryStatus: "out_for_delivery",
+    }).session(session);
+
+    if (!order) {
+      await session.abortTransaction();
+
+      return res.status(404).json({
+        status: false,
+        message: "Order is not ready to be delivered",
+      });
+    }
+
+    // Complete order
+    order.deliveryStatus = "delivered";
+    order.status = "delivered";
+    order.deliveredAt = new Date();
+
+    await order.save({ session });
+
+    // Clear partner's active order
+    partner.currentOrder = null;
+
+    await partner.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    // Notify customer
+    try {
+      const io = getIO();
+
+      io.to(`user_${order.user.toString()}`).emit(
+        "order:delivered",
+        {
+          orderId: order._id,
+          message: "Your order has been delivered",
+        }
+      );
+    } catch (socketError) {
+      console.log(
+        "Socket notification error:",
+        socketError.message
+      );
+    }
+
+    return res.status(200).json({
+      status: true,
+      message: "Order delivered successfully",
+      data: {
+        orderId: order._id,
+        status: order.status,
+        deliveryStatus: order.deliveryStatus,
+        deliveryFee: order.deliveryFee,
+        deliveredAt: order.deliveredAt,
+      },
+    });
+  } catch (error) {
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
+
+    session.endSession();
+
+    console.error("Deliver Order Error:", error);
+
+    return res.status(500).json({
+      status: false,
+      message: error.message || "Internal server error",
+    });
+  }
+}
+
+
   // DELIVERY ORDER HISTORY
-  // =====================================================
+
   async deliveryHistory(req, res) {
     try {
       const partner = await DeliveryPartner.findOne({
@@ -1056,9 +1118,9 @@ class deliveryController {
     }
   }
 
-  // =====================================================
+
   // DELIVERY EARNINGS SUMMARY
-  // =====================================================
+
   async getEarnings(req, res) {
     try {
       const partner = await DeliveryPartner.findOne({
@@ -1196,9 +1258,9 @@ class deliveryController {
     }
   }
 
-  // =====================================================
+
   // DELIVERY EARNINGS HISTORY
-  // =====================================================
+
   async earningsHistory(req, res) {
     try {
       const partner = await DeliveryPartner.findOne({
@@ -1242,9 +1304,9 @@ class deliveryController {
       });
     }
   }
-  // =====================================================
+
   // ADMIN: PENDING DELIVERY PARTNERS
-  // =====================================================
+
   async pendingDeliveryPartners(req, res) {
     try {
       const partners = await DeliveryPartner.find({
@@ -1265,9 +1327,9 @@ class deliveryController {
     }
   }
 
-  // =====================================================
+
   // ADMIN: APPROVED DELIVERY PARTNERS
-  // =====================================================
+
   async approvedDeliveryPartners(req, res) {
     try {
       const partners = await DeliveryPartner.find({
@@ -1288,9 +1350,9 @@ class deliveryController {
     }
   }
 
-  // =====================================================
+
   // ADMIN: APPROVE / REJECT DELIVERY PARTNER
-  // =====================================================
+
   async updateDeliveryStatus(req, res) {
     const session = await mongoose.startSession();
 

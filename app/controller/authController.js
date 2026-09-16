@@ -444,7 +444,7 @@ class AuthController {
         });
       }
       ///////////////////////////
-// 
+      // 
       const openingClosing = restaurant.openingClosing;
 
       if (
@@ -907,9 +907,12 @@ class AuthController {
       });
 
 
+      // const orderItems = [];
+
+      // let totalAmount = 0;
       const orderItems = [];
 
-      let totalAmount = 0;
+      let subtotal = 0;
 
       for (const item of cart.items) {
         const food =
@@ -1023,25 +1026,57 @@ class AuthController {
         });
 
 
-        totalAmount += itemTotal;
+        // totalAmount += itemTotal;
+        subtotal += itemTotal;
       }
 
+      // if (
+      //   !Number.isFinite(totalAmount) ||
+      //   totalAmount <= 0
+      // ) {
+      //   throw new Error(
+      //     "Invalid total amount"
+      //   );
+      // }
+
+      // totalAmount = Number(
+      //   totalAmount.toFixed(2)
+      // );
       if (
-        !Number.isFinite(totalAmount) ||
-        totalAmount <= 0
+        !Number.isFinite(subtotal) ||
+        subtotal <= 0
       ) {
         throw new Error(
-          "Invalid total amount"
+          "Invalid subtotal"
         );
       }
 
-      totalAmount = Number(
-        totalAmount.toFixed(2)
+      subtotal = Number(subtotal.toFixed(2));
+
+      // Delivery fee rule
+      const deliveryFee = subtotal < 50 ? 0 : 30;
+
+      // Final amount = subtotal + delivery fee
+      const totalAmount = Number(
+        (subtotal + deliveryFee).toFixed(2)
       );
 
 
       const order = await Order.create(
         [
+          // {
+          //   user: req.user.id,
+
+          //   restaurant: cart.restaurant,
+
+          //   items: orderItems,
+
+          //   totalAmount: totalAmount,
+
+          //   address: address,
+
+          //   status: "placed",
+          // },
           {
             user: req.user.id,
 
@@ -1051,10 +1086,12 @@ class AuthController {
 
             totalAmount: totalAmount,
 
+            deliveryFee: deliveryFee,
+
             address: address,
 
             status: "placed",
-          },
+          }
         ],
         {
           session,
@@ -1326,8 +1363,8 @@ class AuthController {
       const allowedTransitions = {
         placed: ["accepted", "cancelled"],
         accepted: ["preparing", "cancelled"],
-  preparing: ["ready", "cancelled"],
-         ready: ["out_for_delivery"],
+        preparing: ["ready", "cancelled"],
+        ready: ["out_for_delivery"],
         out_for_delivery: ["delivered"],
         delivered: [],
         cancelled: [],
