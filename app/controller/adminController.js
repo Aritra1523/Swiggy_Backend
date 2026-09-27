@@ -1,6 +1,8 @@
 const Restaurant = require("../model/RestaurantModel/restaurantModel");
 const User = require("../model/authModel");
 const Food = require("../model/foodModel");
+const Order = require("../model/orderModel");
+const DeliveryPartner = require("../model/DeliveryModel/deliveryModel");
 const slugify = require("slugify");
 const path = require("path");
 const fs = require("fs");
@@ -198,16 +200,64 @@ class AdminController {
     }
   }
 
-  async approvedRestaurants(req, res) {
+  // async approvedRestaurants(req, res) {
+  //   try {
+  //     const restaurants = await Restaurant.find({
+  //       status: "approved",
+  //     }).sort({ createdAt: -1 });
+
+  //     return res.status(200).json({
+  //       success: true,
+  //       count: restaurants.length,
+  //       data: restaurants,
+  //     });
+  //   } catch (error) {
+  //     return res.status(500).json({
+  //       success: false,
+  //       message: "Something went wrong",
+  //       error: error.message,
+  //     });
+  //   }
+  // }
+   async approvedRestaurants(req, res) {
     try {
       const restaurants = await Restaurant.find({
         status: "approved",
-      }).sort({ createdAt: -1 });
-
+      })
+        .sort({ createdAt: -1 })
+        .lean();
+ 
+      const restaurantIds = restaurants.map((r) => r._id);
+ 
+      const deliveredCounts = await Order.aggregate([
+        {
+          $match: {
+            restaurant: { $in: restaurantIds },
+            status: "delivered",
+          },
+        },
+        {
+          $group: {
+            _id: "$restaurant",
+            count: { $sum: 1 },
+          },
+        },
+      ]);
+ 
+      const countByRestaurant = new Map(
+        deliveredCounts.map((c) => [c._id.toString(), c.count])
+      );
+ 
+      const data = restaurants.map((restaurant) => ({
+        ...restaurant,
+        deliveredOrdersCount:
+          countByRestaurant.get(restaurant._id.toString()) || 0,
+      }));
+ 
       return res.status(200).json({
         success: true,
-        count: restaurants.length,
-        data: restaurants,
+        count: data.length,
+        data,
       });
     } catch (error) {
       return res.status(500).json({
@@ -377,6 +427,83 @@ class AdminController {
     }
   }
 
+  async orderAnalytics(req, res) {
+    try {
+      const restaurantStats = await Order.aggregate([
+        {
+          $group: {
+            _id: "$restaurant",
+
+            totalOrders: {
+              $sum: 1
+            },
+
+            deliveredOrders: {
+              $sum: {
+                $cond: [
+                  { $eq: ["$status", "delivered"] },
+                  1,
+                  0
+                ]
+              }
+            },
+
+            cancelledOrders: {
+              $sum: {
+                $cond: [
+                  { $eq: ["$status", "cancelled"] },
+                  1,
+                  0
+                ]
+              }
+            }
+          }
+        },
+
+        {
+          $lookup: {
+            from: "restaurants",
+            localField: "_id",
+            foreignField: "_id",
+            as: "restaurant"
+          }
+        },
+
+        {
+          $unwind: "$restaurant"
+        },
+
+        {
+          $project: {
+            _id: 1,
+            restaurantName: "$restaurant.restaurantName",
+            totalOrders: 1,
+            deliveredOrders: 1,
+            cancelledOrders: 1
+          }
+        },
+
+        {
+          $sort: {
+            deliveredOrders: -1
+          }
+        }
+      ]);
+
+      res.status(200).json({
+        success: true,
+        restaurants: restaurantStats
+      });
+
+    } catch (error) {
+      console.error("Order analytics error:", error);
+
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch order analytics"
+      });
+    }
+  }
 }
 
 

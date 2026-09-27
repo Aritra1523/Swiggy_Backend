@@ -1330,16 +1330,64 @@ async deliverOrder(req, res) {
 
   // ADMIN: APPROVED DELIVERY PARTNERS
 
-  async approvedDeliveryPartners(req, res) {
+  // async approvedDeliveryPartners(req, res) {
+  //   try {
+  //     const partners = await DeliveryPartner.find({
+  //       status: "approved",
+  //     }).sort({ createdAt: -1 });
+
+  //     return res.status(200).json({
+  //       success: true,
+  //       count: partners.length,
+  //       data: partners,
+  //     });
+  //   } catch (error) {
+  //     return res.status(500).json({
+  //       success: false,
+  //       message: "Something went wrong",
+  //       error: error.message,
+  //     });
+  //   }
+  // }
+
+   async approvedDeliveryPartners(req, res) {
     try {
       const partners = await DeliveryPartner.find({
         status: "approved",
-      }).sort({ createdAt: -1 });
-
+      })
+        .sort({ createdAt: -1 })
+        .lean();
+ 
+      const partnerIds = partners.map((p) => p._id);
+ 
+      const deliveredCounts = await Order.aggregate([
+        {
+          $match: {
+            deliveryPartner: { $in: partnerIds },
+            deliveryStatus: "delivered",
+          },
+        },
+        {
+          $group: {
+            _id: "$deliveryPartner",
+            count: { $sum: 1 },
+          },
+        },
+      ]);
+ 
+      const countByPartner = new Map(
+        deliveredCounts.map((c) => [c._id.toString(), c.count])
+      );
+ 
+      const data = partners.map((partner) => ({
+        ...partner,
+        deliveredOrdersCount: countByPartner.get(partner._id.toString()) || 0,
+      }));
+ 
       return res.status(200).json({
         success: true,
-        count: partners.length,
-        data: partners,
+        count: data.length,
+        data,
       });
     } catch (error) {
       return res.status(500).json({

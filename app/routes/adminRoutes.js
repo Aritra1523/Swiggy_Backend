@@ -301,6 +301,11 @@ router.get(
   authorizeRoles("admin"),
   adminController.pendingFoodList
 );
-
+router.get(
+  "/admin/order-analytics",
+  AuthCheck,
+  authorizeRoles("admin"),
+  adminController.orderAnalytics
+);
 
 module.exports = router;
